@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InstaCluster — Instagram User Segmentation</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     NAV
+══════════════════════════════════════════════ -->
+<nav>
+  <div class="container nav-inner">
+    <div class="nav-brand">
+      <div class="nav-mark">IC</div>
+      <span class="nav-wordmark">Insta<span>Cluster</span></span>
+    </div>
+    <span class="nav-tag">KMeans · 5 Segments</span>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════
+     MAIN
+══════════════════════════════════════════════ -->
+<main>
+  <div class="container">
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-badge">
+        <span></span>
+        Unsupervised Machine Learning · KMeans Clustering
+      </div>
+      <h1>Instagram User<br><em>Segmentation</em> Engine</h1>
+      <p>Enter a user's Instagram visit score and spending rank to instantly identify which behavioural segment they belong to — powered by a trained KMeans model.</p>
+      <div class="hero-stats">
+        <div class="stat-chip"><strong>5</strong><span>Clusters</span></div>
+        <div class="stat-chip"><strong>2</strong><span>Features</span></div>
+        <div class="stat-chip"><strong>K-Means++</strong><span>Init Method</span></div>
+        <div class="stat-chip"><strong>Scaled</strong><span>StandardScaler</span></div>
+      </div>
+    </section>
+
+    <!-- App grid -->
+    <div class="app-grid">
+
+      <!-- INPUT CARD -->
+      <div class="card">
+        <div class="card-title">Input Features</div>
+
+        <div class="form-group">
+          <label for="visit_score">Instagram Visit Score</label>
+          <div class="input-wrap">
+            <input type="number" id="visit_score" min="0" max="100" step="0.1" placeholder="0 – 100" />
+            <span class="input-unit">/ 100</span>
+          </div>
+          <div class="range-row">
+            <input type="range" id="visit_range" min="0" max="100" step="1" value="50"
+                   oninput="syncRange(this,'visit_score','visit_val')" style="--val:50%" />
+            <span class="range-val" id="visit_val">50</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="spending_rank">Spending Rank (0 to 100)</label>
+          <div class="input-wrap">
+            <input type="number" id="spending_rank" min="0" max="100" step="0.1" placeholder="0 – 100" />
+            <span class="input-unit">/ 100</span>
+          </div>
+          <div class="range-row">
+            <input type="range" id="spend_range" min="0" max="100" step="1" value="50"
+                   oninput="syncRange(this,'spending_rank','spend_val')" style="--val:50%" />
+            <span class="range-val" id="spend_val">50</span>
+          </div>
+        </div>
+
+        <button class="btn-predict" id="predictBtn" onclick="predict()">
+          <span id="btn-text">Classify User Segment</span>
+          <div class="spinner" id="spinner"></div>
+        </button>
+      </div>
+
+      <!-- RESULT CARD -->
+      <div class="card" id="resultCard">
+        <div class="card-title">Prediction Result</div>
+
+        <!-- Empty state -->
+        <div class="result-empty" id="resultEmpty">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="10" cy="14" r="3.5" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="38" cy="14" r="3.5" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="14" cy="36" r="3.5" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="34" cy="36" r="3.5" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          <p>Enter visit score &amp; spending rank<br>then click <strong>Classify</strong> to see which<br>segment this user belongs to.</p>
+        </div>
+
+        <!-- Error state -->
+        <div class="result-error" id="resultError"></div>
+
+        <!-- Result content -->
+        <div class="result-content" id="resultContent">
+          <div class="result-cluster-num" id="clusterNum">CLUSTER 1</div>
+          <div class="result-name" id="clusterName">—</div>
+          <div class="result-desc" id="clusterDesc">—</div>
+          <div class="result-insight"><strong>💡 Insight:</strong> <span id="clusterInsight">—</span></div>
+
+          <div class="confidence-row">
+            <span class="confidence-label">Confidence Score</span>
+            <span class="confidence-val" id="confVal">—%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+          <div class="input-summary">
+            <span class="input-pill">Visit Score: <span id="summVisit">—</span></span>
+            <span class="input-pill">Spending Rank: <span id="summSpend">—</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLUSTER GUIDE -->
+      <div class="card cluster-guide">
+        <div class="card-title">Cluster Reference Guide</div>
+        <div class="clusters-grid">
+          <div class="cluster-chip">
+            <div class="chip-dot" style="background:#EF4444"></div>
+            <div class="chip-name">Casual Browsers</div>
+            <div class="chip-label">Cluster 1 · Low–Low</div>
+          </div>
+          <div class="cluster-chip">
+            <div class="chip-dot" style="background:#3B82F6"></div>
+            <div class="chip-name">Window Shoppers</div>
+            <div class="chip-label">Cluster 2 · Mid–Low</div>
+          </div>
+          <div class="cluster-chip">
+            <div class="chip-dot" style="background:#22C55E"></div>
+            <div class="chip-name">High-Value Engagers</div>
+            <div class="chip-label">Cluster 3 · High–High</div>
+          </div>
+          <div class="cluster-chip">
+            <div class="chip-dot" style="background:#06B6D4"></div>
+            <div class="chip-name">Passive Spenders</div>
+            <div class="chip-label">Cluster 4 · Low–High</div>
+          </div>
+          <div class="cluster-chip">
+            <div class="chip-dot" style="background:#EC4899"></div>
+            <div class="chip-name">Active Explorers</div>
+            <div class="chip-label">Cluster 5 · High–Mid</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /app-grid -->
+  </div><!-- /container -->
+</main>
+
+<!-- ══════════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════════ -->
+<footer>
+  <div class="container">
+
+    <!-- Top grid -->
+    <div class="footer-grid">
+
+      <!-- Column 1 — Brand -->
+      <div>
+        <div class="footer-wordmark">
+          <div class="mark">IC</div>
+          Insta<span>Cluster</span>
+        </div>
+        <p class="footer-brand-desc">
+          Instagram user segmentation powered by KMeans unsupervised machine learning.
+          Identify which behavioural cluster any user belongs to — instantly and accurately.
+        </p>
+        <div class="built-by-card">
+          <div class="avatar-wrap">
+            <img
+              src="https://unavatar.io/twitter/Baron_dikachi"
+              alt="Dikachi Baron"
+              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+            />
+            <div class="avatar-fallback" style="display:none">DB</div>
+          </div>
+          <div>
+            <div class="built-by-label">Built by</div>
+            <div class="built-by-name">Dikachi Baron</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 2 — Quick Links -->
+      <div>
+        <div class="footer-col-title">Quick Links</div>
+        <ul class="footer-links">
+          <li><a href="#">Segmentation Tool</a></li>
+          <li><a href="#">How It Works</a></li>
+          <li><a href="#">Cluster Reference Guide</a></li>
+          <li><a href="#">Model Information</a></li>
+          <li><a href="#">About This Project</a></li>
+        </ul>
+      </div>
+
+      <!-- Column 3 — Connect -->
+      <div>
+        <div class="footer-col-title">Connect</div>
+        <ul class="footer-links">
+          <li>
+            <a href="https://x.com/Baron_dikachi" target="_blank" rel="noopener noreferrer">
+              X / Twitter
+            </a>
+          </li>
+          <li>
+            <a href="https://www.linkedin.com/in/dikachi-baron-a4a380356?utm_source=share_via&utm_content=profile&utm_medium=member_android" target="_blank" rel="noopener noreferrer">
+              LinkedIn
+            </a>
+          </li>
+          <li>
+            <a href="https://www.facebook.com/share/18H6wLY1fW/" target="_blank" rel="noopener noreferrer">
+              Facebook
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/Dikachi32" target="_blank" rel="noopener noreferrer">
+              GitHub
+            </a>
+          </li>
+        </ul>
+
+        <!-- Social icon row -->
+        <div class="social-row">
+          <div class="social-row-label">Follow</div>
+          <div class="social-icons">
+
+            <!-- Twitter/X -->
+            <a class="social-btn tw" href="https://x.com/Baron_dikachi" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L2.25 2.25h6.891l4.259 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/>
+              </svg>
+            </a>
+
+            <!-- LinkedIn -->
+            <a class="social-btn li" href="https://www.linkedin.com/in/dikachi-baron-a4a380356?utm_source=share_via&utm_content=profile&utm_medium=member_android" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+              </svg>
+            </a>
+
+            <!-- Facebook -->
+            <a class="social-btn fb" href="https://www.facebook.com/share/18H6wLY1fW/" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+            </a>
+
+            <!-- GitHub -->
+            <a class="social-btn gh" href="https://github.com/Dikachi32" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+              </svg>
+            </a>
+
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /footer-grid -->
+
+    <!-- Bottom bar -->
+    <div class="footer-bottom">
+      <span class="footer-copy">© 2026 InstaCluster · Dikachi Baron · All rights reserved.</span>
+      <div class="status-chips">
+        <span class="chip"><span class="chip-dot-green"></span> Model Active</span>
+        <span class="chip">KMeans v1.0</span>
+        <span class="chip">Flask</span>
+      </div>
+    </div>
+
+  </div><!-- /container -->
+
+  <!-- Disclaimer strip -->
+  <div class="footer-disclaimer">
+    <div class="container">
+      <div class="disclaimer-inner">
+        <div class="disclaimer-icon">i</div>
+        <p class="disclaimer-text">
+          <strong>Disclaimer:</strong> This tool is for informational and educational purposes only.
+          Predictions are generated by a KMeans model trained on historical Instagram visit and spending data,
+          and do not constitute marketing or business advice. Results should not be used as the sole basis for
+          any commercial or targeting decision. Always validate findings with qualified data analysis.
+        </p>
+      </div>
+    </div>
+  </div>
+
+</footer>
+
+<!-- ══════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════ -->
+<script>
+  /* ── Range slider sync ──────────────────────────────────── */
+  function syncRange(rangeEl, inputId, valId) {
+    const v = rangeEl.value;
+    document.getElementById(inputId).value = v;
+    document.getElementById(valId).textContent = v;
+    rangeEl.style.setProperty('--val', v + '%');
+  }
+
+  // Sync typing into number input → slider
+  document.getElementById('visit_score').addEventListener('input', function () {
+    const v = Math.min(100, Math.max(0, parseFloat(this.value) || 0));
+    const r = document.getElementById('visit_range');
+    r.value = v; r.style.setProperty('--val', v + '%');
+    document.getElementById('visit_val').textContent = v;
+  });
+  document.getElementById('spending_rank').addEventListener('input', function () {
+    const v = Math.min(100, Math.max(0, parseFloat(this.value) || 0));
+    const r = document.getElementById('spend_range');
+    r.value = v; r.style.setProperty('--val', v + '%');
+    document.getElementById('spend_val').textContent = v;
+  });
+
+  /* ── Predict ────────────────────────────────────────────── */
+  async function predict() {
+    const visitVal   = document.getElementById('visit_score').value.trim();
+    const spendVal   = document.getElementById('spending_rank').value.trim();
+
+    // Hide previous states
+    document.getElementById('resultEmpty').style.display   = 'none';
+    document.getElementById('resultError').style.display   = 'none';
+    const contentEl = document.getElementById('resultContent');
+    contentEl.style.display = 'none';
+    contentEl.classList.remove('visible');
+
+    // Validate
+    if (visitVal === '' || spendVal === '') {
+      showError('Please enter both Instagram Visit Score and Spending Rank.');
+      return;
+    }
+
+    // Loading state
+    const btn     = document.getElementById('predictBtn');
+    const btnText = document.getElementById('btn-text');
+    const spinner = document.getElementById('spinner');
+    btn.disabled      = true;
+    btnText.style.display  = 'none';
+    spinner.style.display  = 'block';
+
+    try {
+      const res = await fetch('/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visit_score: visitVal, spending_rank: spendVal })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        showError(data.error || 'Prediction failed. Please try again.');
+        return;
+      }
+
+      // Populate result
+      document.getElementById('clusterNum').textContent   = `CLUSTER ${data.cluster_num}`;
+      document.getElementById('clusterName').textContent  = data.name;
+      document.getElementById('clusterName').style.color  = data.color;
+      document.getElementById('clusterDesc').textContent  = data.description;
+      document.getElementById('clusterInsight').textContent = data.insight;
+      document.getElementById('confVal').textContent      = data.confidence + '%';
+      document.getElementById('progressFill').style.width = data.confidence + '%';
+      document.getElementById('summVisit').textContent    = data.visit_score;
+      document.getElementById('summSpend').textContent    = data.spending_rank;
+
+      contentEl.style.display = 'block';
+      requestAnimationFrame(() => contentEl.classList.add('visible'));
+
+    } catch (err) {
+      showError('Network error — make sure the Flask server is running.');
+    } finally {
+      btn.disabled       = false;
+      btnText.style.display  = 'inline';
+      spinner.style.display  = 'none';
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('resultError');
+    el.textContent     = '⚠ ' + msg;
+    el.style.display   = 'block';
+    document.getElementById('resultEmpty').style.display = 'none';
+  }
+
+  /* ── Enter key shortcut ─────────────────────────────────── */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') predict();
+  });
+</script>
+
+</body>
+</html>
